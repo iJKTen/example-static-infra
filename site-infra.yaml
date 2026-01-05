@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Infrastructure for yourdomain.com - S3 Hosting, CloudFront CDN, and CI/CD Pipeline.
+
+Resources:
+  S3WebsiteBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: AutoCleanupOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+  
+  BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref S3WebsiteBucket
+      PolicyDocument:
+        Id: MyPolicy
+        Version: 2012-10-17
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: '*'
+            Action: 
+              - 's3:GetObject'
+            Resource: !Sub '${S3WebsiteBucket.Arn}/*'
+          - Sid: PublicReadForListBucket
+            Effect: Allow
+            Principal: '*'
+            Action: 
+              - 's3:ListBucket'
+            Resource: !GetAtt S3WebsiteBucket.Arn
+
+  PipelineArtifactBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  CodePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: PipelineAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource:
+                  - !GetAtt S3WebsiteBucket.Arn
+                  - !GetAtt PipelineArtifactBucket.Arn
+                  - !Sub '${S3WebsiteBucket.Arn}/*'
+                  - !Sub '${PipelineArtifactBucket.Arn}/*'
+              
+              - Effect: Allow
+                Action: 'codestar-connections:UseConnection'
+                Resource: !ImportValue "GlobalResourcesStack-GitHubConnectionArn"
+                
+  StaticSitePipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineArtifactBucket
+        
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHubSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              OutputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                ConnectionArn: !ImportValue "GlobalResourcesStack-GitHubConnectionArn"
+                FullRepositoryId: github_username/repo
+                BranchName: main
+                OutputArtifactFormat: CODE_ZIP
+
+        - Name: Deploy
+          Actions:
+            - Name: S3Deploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                BucketName: !Ref S3WebsiteBucket 
+                Extract: 'true'
+                CacheControl: max-age=0,no-cache,no-store,must-revalidate
+
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - yourdomain.com
+          - www.yourdomain.com
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - DomainName: !GetAtt S3WebsiteBucket.RegionalDomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https 
+          ForwardedValues:
+            QueryString: false
+        ViewerCertificate:
+          AcmCertificateArn: !ImportValue GlobalResources-CertificateArn
+          SslSupportMethod: sni-only
+
+  DomainRecord:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneId: !ImportValue GlobalResources-HostedZoneId
+      Name: yourdomain.com
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
