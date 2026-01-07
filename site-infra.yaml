@@ -6,13 +6,10 @@ Resources:
     Type: 'AWS::S3::Bucket'
     Properties:
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: error.html
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       VersioningConfiguration:
         Status: Enabled
       LifecycleConfiguration:
@@ -23,7 +20,7 @@ Resources:
               NoncurrentDays: 30
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
-  
+
   BucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
     Properties:
@@ -32,18 +29,15 @@ Resources:
         Id: MyPolicy
         Version: 2012-10-17
         Statement:
-          - Sid: PublicReadForGetBucketObjects
+          - Sid: AllowCloudFrontServicePrincipal
             Effect: Allow
-            Principal: '*'
-            Action: 
-              - 's3:GetObject'
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 's3:GetObject'
             Resource: !Sub '${S3WebsiteBucket.Arn}/*'
-          - Sid: PublicReadForListBucket
-            Effect: Allow
-            Principal: '*'
-            Action: 
-              - 's3:ListBucket'
-            Resource: !GetAtt S3WebsiteBucket.Arn
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
 
   PipelineArtifactBucket:
     Type: 'AWS::S3::Bucket'
@@ -130,6 +124,16 @@ Resources:
                 Extract: 'true'
                 CacheControl: max-age=0,no-cache,no-store,must-revalidate
 
+  CloudFrontOAC:
+    Type: 'AWS::CloudFront::OriginAccessControl'
+    Properties:
+      OriginAccessControlConfig:
+        Description: "OAC for yourdomain.com S3 Bucket"
+        Name: !Sub "${AWS::StackName}-OAC"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
   CloudFrontDistribution:
     Type: 'AWS::CloudFront::Distribution'
     Properties:
@@ -142,8 +146,9 @@ Resources:
         Origins:
           - DomainName: !GetAtt S3WebsiteBucket.RegionalDomainName
             Id: S3Origin
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
             S3OriginConfig:
-              OriginAccessIdentity: ""
+              OriginAccessIdentity: "" 
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https 
