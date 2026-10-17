@@ -16,7 +16,7 @@ Parameters:
 
 Resources:
   # ──────────────────────────────────────────────
-  # S3 Site Bucket (Post 5)
+  # S3 Site Bucket (Post 7)
   # ──────────────────────────────────────────────
   S3WebsiteBucket:
     Type: 'AWS::S3::Bucket'
@@ -42,7 +42,7 @@ Resources:
               NoncurrentDays: 7
 
   # ──────────────────────────────────────────────
-  # Pipeline Artifact Bucket (Post 7)
+  # Pipeline Artifact Bucket (Post 9)
   # ──────────────────────────────────────────────
   PipelineArtifactBucket:
     Type: 'AWS::S3::Bucket'
@@ -88,7 +88,7 @@ Resources:
                 'aws:SecureTransport': 'false'
 
   # ──────────────────────────────────────────────
-  # S3 Bucket Policy (Post 6)
+  # S3 Bucket Policy (Post 8)
   # ──────────────────────────────────────────────
   BucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
@@ -118,7 +118,7 @@ Resources:
                 'aws:SecureTransport': 'false'
 
   # ──────────────────────────────────────────────
-  # Build Project (Post 9)
+  # Build Project (Post 11)
   # ──────────────────────────────────────────────
   BuildProject:
     Type: 'AWS::CodeBuild::Project'
@@ -157,7 +157,7 @@ Resources:
               - 'node_modules/**/*'
 
   # ──────────────────────────────────────────────
-  # CodeBuild Service Role (Post 9)
+  # CodeBuild Service Role (Post 11)
   # ──────────────────────────────────────────────
   CodeBuildServiceRole:
     Type: 'AWS::IAM::Role'
@@ -193,7 +193,7 @@ Resources:
                   - !GetAtt PipelineArtifactBucket.Arn
 
   # ──────────────────────────────────────────────
-  # Deploy Project (Post 11)
+  # Deploy Project (Post 13)
   # ──────────────────────────────────────────────
   DeployProject:
     Type: 'AWS::CodeBuild::Project'
@@ -225,7 +225,7 @@ Resources:
                 - aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DIST_ID --paths "/*"
 
   # ──────────────────────────────────────────────
-  # Deploy Service Role (Post 11)
+  # Deploy Service Role (Post 13)
   # ──────────────────────────────────────────────
   DeployServiceRole:
     Type: 'AWS::IAM::Role'
@@ -273,7 +273,7 @@ Resources:
                 Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
   # ──────────────────────────────────────────────
-  # CodePipeline Service Role (Post 8)
+  # CodePipeline Service Role (Post 10)
   # ──────────────────────────────────────────────
   CodePipelineServiceRole:
     Type: 'AWS::IAM::Role'
@@ -316,7 +316,7 @@ Resources:
                   - !GetAtt DeployProject.Arn
 
   # ──────────────────────────────────────────────
-  # Pipeline (Post 8 + Post 11)
+  # Pipeline (Post 10 + Post 13)
   # ──────────────────────────────────────────────
   Pipeline:
     Type: 'AWS::CodePipeline::Pipeline'
@@ -369,7 +369,7 @@ Resources:
                 ProjectName: !Ref DeployProject
 
   # ──────────────────────────────────────────────
-  # CloudFront OAC (Post 6)
+  # CloudFront OAC (Post 8)
   # ──────────────────────────────────────────────
   CloudFrontOAC:
     Type: 'AWS::CloudFront::OriginAccessControl'
@@ -381,7 +381,7 @@ Resources:
         SigningProtocol: sigv4
 
   # ──────────────────────────────────────────────
-  # Security Headers Policy (Post 11)
+  # Security Headers Policy (Post 13)
   # ──────────────────────────────────────────────
   SecurityHeadersPolicy:
     Type: 'AWS::CloudFront::ResponseHeadersPolicy'
@@ -411,7 +411,7 @@ Resources:
             ContentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
 
   # ──────────────────────────────────────────────
-  # CloudFront Distribution (Post 6 + Post 11)
+  # CloudFront Distribution (Post 8 + Post 13)
   # ──────────────────────────────────────────────
   CloudFrontDistribution:
     Type: 'AWS::CloudFront::Distribution'
@@ -440,7 +440,7 @@ Resources:
           MinimumProtocolVersion: TLSv1.2_2021
 
   # ──────────────────────────────────────────────
-  # Route 53 Record (Post 10)
+  # Route 53 Record (Post 12)
   # ──────────────────────────────────────────────
   DomainRecord:
     Type: 'AWS::Route53::RecordSet'
